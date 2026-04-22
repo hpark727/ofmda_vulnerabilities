@@ -2,15 +2,15 @@
 
 set -euo pipefail
 
-IFACE="${1:?Usage: $0 <interface> <duration_seconds> <output_dir> [prefix]}"
-DURATION="${2:?Usage: $0 <interface> <duration_seconds> <output_dir> [prefix]}"
-OUTDIR="${3:?Usage: $0 <interface> <duration_seconds> <output_dir> [prefix]}"
-PREFIX="${4:-capture}"
+IFACE="${1:?Usage: $0 <interface> <duration_seconds> <output_dir> <i> <j>}"
+DURATION="${2:?Usage: $0 <interface> <duration_seconds> <output_dir> <i> <j>}"
+OUTDIR="${3:?Usage: $0 <interface> <duration_seconds> <output_dir> <i> <j>}"
+I="${4:?Usage: $0 <interface> <duration_seconds> <output_dir> <i> <j>}"
+J="${5:?Usage: $0 <interface> <duration_seconds> <output_dir> <i> <j>}"
 
 mkdir -p "$OUTDIR"
 
-TS="$(date +%Y%m%d_%H%M%S)"
-OUTFILE="$OUTDIR/${PREFIX}_${TS}.pcap"
+OUTFILE="$OUTDIR/${I}_${J}.pcap"
 
 if ! touch "$OUTDIR/.capture_write_test" 2>/dev/null; then
     echo "Error: cannot write to output directory: $OUTDIR" >&2
@@ -20,6 +20,7 @@ rm -f "$OUTDIR/.capture_write_test"
 
 echo "Capturing on interface: $IFACE"
 echo "Duration: ${DURATION}s"
+echo "Indices: ${I}, ${J}"
 echo "Saving to: $OUTFILE"
 
 tshark -i "$IFACE" -F pcap -a "duration:${DURATION}" -w "$OUTFILE"
