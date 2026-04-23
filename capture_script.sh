@@ -25,7 +25,7 @@ EOF
 CAPTURE_INTERFACE="wlx9cefd5f63c20"
 SITE_FILE="$SCRIPT_DIR/sites.txt"
 SSH_HOST=""
-SSH_USER="haelpark@192.168.0.142"
+SSH_USER="hhy-a@192.168.0.15"
 SSH_PORT="22"
 REMOTE_DIR="/Users/haelpark/ofmda_vulnerabilities/.venv/bin/python"
 REMOTE_PYTHON="python3"
@@ -70,9 +70,14 @@ sanitize_site_name() {
     python3 - "$1" <<'PY'
 import re
 import sys
+from urllib.parse import urlsplit
 
 site = sys.argv[1].strip()
-label = re.sub(r"[^A-Za-z0-9._-]+", "_", site).strip("._-")
+candidate = site if "://" in site else f"https://{site}"
+parsed = urlsplit(candidate)
+hostname = parsed.netloc or parsed.path.split("/", 1)[0]
+label_source = hostname or site
+label = re.sub(r"[^A-Za-z0-9._-]+", "_", label_source).strip("._-")
 print(label or "site")
 PY
 }
@@ -316,9 +321,9 @@ for ((CURRENT_ITER = 1; CURRENT_ITER <= ITERATIONS; CURRENT_ITER++)); do
         SITE_KEY=$(sanitize_site_name "$SITE")
         SITE_OUTDIR="$OUTDIR/$SITE_KEY"
         OUTFILE="$SITE_OUTDIR/run_${CURRENT_ITER}.pcap"
-        REMOTE_LOG_FILE="$REMOTE_LOG_DIR/${SITE_KEY}_run_${CURRENT_ITER}.log"
+        REMOTE_LOG_FILE="$REMOTE_LOG_DIR/$SITE_KEY/run_${CURRENT_ITER}.log"
 
-        mkdir -p "$SITE_OUTDIR"
+        mkdir -p "$SITE_OUTDIR" "$(dirname "$REMOTE_LOG_FILE")"
 
         LOCAL_START_EPOCH=$(timestamp_now)
         REMOTE_START_EPOCH=""
