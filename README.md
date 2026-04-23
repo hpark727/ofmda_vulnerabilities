@@ -43,6 +43,6 @@ That command means:
 ## Notes
 
 - Increase `--lead-seconds` if the remote laptop needs more time to open SSH, start Python, and launch Chromium before the scheduled start.
-- Remote stdout and stderr are saved locally under `output_dir/_remote_logs/`.
-- The default output layout is `output_dir/<site>/run_<iteration>.pcap`.
+- Remote stdout and stderr are saved locally under `output_dir/_remote_logs/<site-class>/run_<iteration>.log`.
+- The default output layout is `output_dir/<site-class>/run_<iteration>.pcap`, where `site-class` is derived from the site hostname in `sites.txt`.
 - `playwright_script.py --print-sites` prints the shared site list from `sites.txt`.
