@@ -4,7 +4,7 @@ This repo now uses per-site synchronization so each packet capture gets its own 
 
 ## How it works
 
-`capture_script.sh` is now the controller:
+`capture_script.sh` is the controller:
 
 1. Loads the shared site order from `sites.txt`.
 2. Loops through every site for `N` iterations.
@@ -15,20 +15,24 @@ This repo now uses per-site synchronization so each packet capture gets its own 
 
 This avoids cumulative drift from a long pre-scheduled browser batch.
 
+## FORMATTING:
+./capture_script.sh [ssh options] <duration_seconds> <output_dir> <iterations> <offset_seconds>
+
+
 ## Example
 
 ```bash
 ./capture_script.sh \
-  --ssh-host 192.168.1.50 \
-  --ssh-user hael \
-  --remote-dir /home/hael/ofmda_vulnerabilities \
+  --ssh-host CLIENT IP \
+  --ssh-user CLIENT USERNAME \
+  --remote-dir # DIRECTORY ON CLIENT LAPTOP \
   --remote-scroll-seconds 12 \
-  12 ./captures 2 2
+  wlan0 12 ./captures 2 2
 ```
 
 That command means:
 
-- capture on the hardcoded `CAPTURE_INTERFACE` inside `capture_script.sh`
+- capture on `wlan0`
 - capture each run for `12` seconds
 - save pcaps under `./captures`
 - visit every site in `sites.txt` for `2` iterations
@@ -43,6 +47,6 @@ That command means:
 ## Notes
 
 - Increase `--lead-seconds` if the remote laptop needs more time to open SSH, start Python, and launch Chromium before the scheduled start.
-- Remote stdout and stderr are saved locally under `output_dir/_remote_logs/<site-class>/run_<iteration>.log`.
-- The default output layout is `output_dir/<site-class>/run_<iteration>.pcap`, where `site-class` is derived from the site hostname in `sites.txt`.
+- Remote stdout and stderr are saved locally under `output_dir/_remote_logs/`.
+- The default output layout is `output_dir/<site>/run_<iteration>.pcap`.
 - `playwright_script.py --print-sites` prints the shared site list from `sites.txt`.
