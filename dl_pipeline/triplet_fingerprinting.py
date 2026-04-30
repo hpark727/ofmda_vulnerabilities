@@ -4,6 +4,7 @@ import argparse
 import json
 import math
 import random
+import sys
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from itertools import combinations
@@ -83,16 +84,24 @@ class TripletFingerprintNet(nn.Module):
     Here we apply the same metric-learning idea to [T, F] packet feature vectors.
     """
 
-    def __init__(self, input_dim: int, embedding_dim: int, dropout: float):
+    def __init__(
+        self,
+        input_dim: int,
+        embedding_dim: int,
+        dropout: float,
+        hidden_size: int = 128,
+    ):
         super().__init__()
+        first_hidden = max(hidden_size // 2, 1)
+        final_hidden = hidden_size * 2
         self.blocks = nn.ModuleList(
             [
-                ConvBlock(input_dim, 64, dropout),
-                ConvBlock(64, 128, dropout),
-                ConvBlock(128, 256, dropout),
+                ConvBlock(input_dim, first_hidden, dropout),
+                ConvBlock(first_hidden, hidden_size, dropout),
+                ConvBlock(hidden_size, final_hidden, dropout),
             ]
         )
-        self.proj = nn.Linear(256, embedding_dim)
+        self.proj = nn.Linear(final_hidden, embedding_dim)
 
     def forward(self, X: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
         x = X.transpose(1, 2)
@@ -136,6 +145,57 @@ def load_dataset(dataset_path: Path, metadata_path: Optional[Path]) -> SequenceD
         label_map=label_map,
         metadata=metadata,
     )
+
+
+def validate_and_filter_dataset(dataset: SequenceDataset) -> Tuple[SequenceDataset, int]:
+    if dataset.X.ndim != 3:
+        raise ValueError(f"Expected X to have shape [N, T, F], got {tuple(dataset.X.shape)}")
+    if dataset.mask.ndim != 2:
+        raise ValueError(
+            f"Expected mask to have shape [N, T], got {tuple(dataset.mask.shape)}"
+        )
+    if dataset.y.ndim != 1:
+        raise ValueError(f"Expected y to have shape [N], got {tuple(dataset.y.shape)}")
+    if dataset.mask.shape != dataset.X.shape[:2]:
+        raise ValueError(
+            "Mask shape must match the first two X dimensions: "
+            f"got X={tuple(dataset.X.shape)} mask={tuple(dataset.mask.shape)}"
+        )
+    if dataset.y.shape[0] != dataset.X.shape[0]:
+        raise ValueError(
+            "Label count must match X rows: "
+            f"got X={tuple(dataset.X.shape)} y={tuple(dataset.y.shape)}"
+        )
+    if dataset.feature_names and len(dataset.feature_names) != dataset.X.shape[-1]:
+        raise ValueError(
+            "feature_names length must match X feature dimension: "
+            f"got {len(dataset.feature_names)} names for X shape {tuple(dataset.X.shape)}"
+        )
+    if dataset.metadata is not None and len(dataset.metadata) != dataset.X.shape[0]:
+        raise ValueError(
+            "Metadata length must match X rows: "
+            f"got X={tuple(dataset.X.shape)} metadata={len(dataset.metadata)}"
+        )
+
+    valid = dataset.mask.sum(dim=1) > 0
+    dropped_empty = int((~valid).sum().item())
+    if dropped_empty == 0:
+        return dataset, 0
+
+    metadata = None
+    if dataset.metadata is not None:
+        keep = valid.tolist()
+        metadata = [entry for entry, keep_entry in zip(dataset.metadata, keep) if keep_entry]
+
+    filtered = SequenceDataset(
+        X=dataset.X[valid],
+        mask=dataset.mask[valid],
+        y=dataset.y[valid],
+        feature_names=dataset.feature_names,
+        label_map=dataset.label_map,
+        metadata=metadata,
+    )
+    return filtered, dropped_empty
 
 
 def build_class_indices(labels: torch.Tensor) -> Dict[int, List[int]]:
@@ -330,6 +390,75 @@ def cosine_triplet_loss(
     return loss, float(pos_sim.mean().item()), float(neg_sim.mean().item())
 
 
+def summarize_embedding_separation(
+    similarities: torch.Tensor,
+    labels: torch.Tensor,
+) -> Dict[str, Optional[float]]:
+    labels = labels.cpu()
+    same_label = labels[:, None] == labels[None, :]
+    eye = torch.eye(len(labels), dtype=torch.bool)
+    positive_mask = same_label & ~eye
+    negative_mask = ~same_label
+
+    summary: Dict[str, Optional[float]] = {
+        "train_all_positive_similarity": None,
+        "train_all_negative_similarity": None,
+        "train_all_similarity_gap": None,
+        "train_nearest_neighbor_accuracy": None,
+    }
+    if positive_mask.any():
+        summary["train_all_positive_similarity"] = float(
+            similarities[positive_mask].mean().item()
+        )
+    if negative_mask.any():
+        summary["train_all_negative_similarity"] = float(
+            similarities[negative_mask].mean().item()
+        )
+    if (
+        summary["train_all_positive_similarity"] is not None
+        and summary["train_all_negative_similarity"] is not None
+    ):
+        summary["train_all_similarity_gap"] = (
+            summary["train_all_positive_similarity"]
+            - summary["train_all_negative_similarity"]
+        )
+
+    if len(labels) > 1:
+        leave_one_out = similarities.clone()
+        leave_one_out.fill_diagonal_(-float("inf"))
+        nearest = leave_one_out.argmax(dim=1)
+        summary["train_nearest_neighbor_accuracy"] = float(
+            (labels[nearest] == labels).float().mean().item()
+        )
+
+    return summary
+
+
+def print_training_progress(
+    epoch: int,
+    total_epochs: int,
+    batch: int,
+    total_batches: int,
+    loss: float,
+    pos_sim: float,
+    neg_sim: float,
+    width: int = 30,
+) -> None:
+    ratio = batch / total_batches if total_batches else 1.0
+    filled = int(width * ratio)
+    bar = "#" * filled + "-" * (width - filled)
+    percent = ratio * 100.0
+    message = (
+        f"\rTraining triplet encoder epoch {epoch}/{total_epochs} "
+        f"[{bar}] {percent:6.2f}% "
+        f"({batch}/{total_batches}, loss={loss:.4f}, pos={pos_sim:.4f}, neg={neg_sim:.4f})"
+    )
+    print(message, end="", file=sys.stderr, flush=True)
+
+    if batch >= total_batches:
+        print(file=sys.stderr, flush=True)
+
+
 def iterate_triplet_batches(
     X: torch.Tensor,
     mask: torch.Tensor,
@@ -458,13 +587,20 @@ def train_triplet_model(
         dropout=args.dropout,
     ).to(device)
 
-    optimizer = torch.optim.SGD(
-        model.parameters(),
-        lr=args.learning_rate,
-        momentum=0.9,
-        nesterov=True,
-        weight_decay=args.weight_decay,
-    )
+    if args.optimizer == "sgd":
+        optimizer = torch.optim.SGD(
+            model.parameters(),
+            lr=args.learning_rate,
+            momentum=0.9,
+            nesterov=True,
+            weight_decay=args.weight_decay,
+        )
+    else:
+        optimizer = torch.optim.AdamW(
+            model.parameters(),
+            lr=args.learning_rate,
+            weight_decay=args.weight_decay,
+        )
 
     rng = random.Random(args.seed)
     history: List[dict] = []
@@ -481,11 +617,16 @@ def train_triplet_model(
         if not anchors:
             raise RuntimeError("No positive pairs could be created from the training split.")
 
+        mining_similarities = (
+            similarities
+            if epoch >= args.hard_negative_start_epoch
+            else None
+        )
         negatives = mine_negatives(
             anchor_indices=anchors,
             positive_indices=positives,
             labels=train_y,
-            similarities=similarities,
+            similarities=mining_similarities,
             margin=args.margin,
             rng=rng,
         )
@@ -495,6 +636,19 @@ def train_triplet_model(
         epoch_pos_sim = 0.0
         epoch_neg_sim = 0.0
         num_batches = 0
+        total_batches = math.ceil(len(anchors) / args.batch_size)
+        show_progress = not getattr(args, "no_progress", False)
+
+        if show_progress:
+            print_training_progress(
+                epoch=epoch,
+                total_epochs=args.epochs,
+                batch=0,
+                total_batches=total_batches,
+                loss=0.0,
+                pos_sim=0.0,
+                neg_sim=0.0,
+            )
 
         for xa, ma, xp, mp, xn, mn in iterate_triplet_batches(
             X=train_X,
@@ -529,6 +683,17 @@ def train_triplet_model(
             epoch_neg_sim += neg_sim
             num_batches += 1
 
+            if show_progress:
+                print_training_progress(
+                    epoch=epoch,
+                    total_epochs=args.epochs,
+                    batch=num_batches,
+                    total_batches=total_batches,
+                    loss=epoch_loss / num_batches,
+                    pos_sim=epoch_pos_sim / num_batches,
+                    neg_sim=epoch_neg_sim / num_batches,
+                )
+
         similarities = compute_embeddings(
             model,
             train_X,
@@ -537,6 +702,7 @@ def train_triplet_model(
             device=device,
         )
         similarities = similarities @ similarities.T
+        train_separation = summarize_embedding_separation(similarities, train_y)
 
         if len(val_y) > 0:
             val_acc = few_shot_accuracy(
@@ -561,6 +727,12 @@ def train_triplet_model(
             "mean_negative_similarity": epoch_neg_sim / max(num_batches, 1),
             "validation_accuracy": val_acc,
             "num_triplets": len(anchors),
+            "negative_mining": (
+                "semi_hard"
+                if mining_similarities is not None
+                else "random"
+            ),
+            **train_separation,
         }
         history.append(history_entry)
         print(json.dumps(history_entry))
@@ -609,6 +781,18 @@ def main():
     parser.add_argument("--weight_decay", type=float, default=1e-5)
     parser.add_argument("--dropout", type=float, default=0.1)
     parser.add_argument(
+        "--optimizer",
+        choices=["adamw", "sgd"],
+        default="adamw",
+        help="Optimizer to use for triplet training.",
+    )
+    parser.add_argument(
+        "--hard_negative_start_epoch",
+        type=int,
+        default=5,
+        help="Use random negatives before this epoch, then switch to semi-hard negatives.",
+    )
+    parser.add_argument(
         "--max_pairs_per_class",
         type=int,
         default=256,
@@ -627,6 +811,11 @@ def main():
     parser.add_argument("--knn_k", type=int, default=1)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument(
+        "--no_progress",
+        action="store_true",
+        help="Disable the live triplet training progress bar.",
+    )
+    parser.add_argument(
         "--device",
         type=str,
         default="cuda" if torch.cuda.is_available() else "cpu",
@@ -637,6 +826,11 @@ def main():
 
     rng = set_seed(args.seed)
     dataset = load_dataset(args.dataset, args.metadata)
+    dataset, empty_captures_dropped = validate_and_filter_dataset(dataset)
+    if empty_captures_dropped:
+        print(
+            f"Dropped {empty_captures_dropped} empty captures with no packets after preprocessing."
+        )
     max_n_shot = max(args.n_shot + [args.validation_n_shot])
 
     train_indices, val_indices, test_indices, dropped = split_indices_per_class(
@@ -675,6 +869,13 @@ def main():
         test_indices,
     )
 
+    if len(build_class_indices(train_y)) < 2:
+        raise RuntimeError(
+            "Training split contains fewer than two classes after filtering and splitting. "
+            "Triplet mining needs at least two classes. Try lowering --n_shot or --val_frac, "
+            "or add more captures per class."
+        )
+
     standardizer = MaskedFeatureStandardizer.fit(train_X, train_mask)
     train_X = standardizer.transform(train_X, train_mask)
     val_X = standardizer.transform(val_X, val_mask)
@@ -711,6 +912,7 @@ def main():
         "dataset": str(args.dataset),
         "metadata": str(args.metadata) if args.metadata else None,
         "feature_names": dataset.feature_names,
+        "empty_captures_dropped": empty_captures_dropped,
         "train_size": len(train_y),
         "val_size": len(val_y),
         "test_size": len(test_y),

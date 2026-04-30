@@ -1,0 +1,129 @@
+{
+  "checkpoint": "triplet_runs/random_negatives_only_ofdma_off_train/triplet_model.pt",
+  "shots": [
+    1,
+    5,
+    10
+  ],
+  "knn_k": 5,
+  "episodes": 100,
+  "eval_batch_size": 256,
+  "seed": 42,
+  "device": "cpu",
+  "results": [
+    {
+      "tensor": "tensors/ofdma_off_2_triplet.pt",
+      "metadata": "tensors/ofdma_off_2_triplet_meta.json",
+      "empty_captures_dropped": 0,
+      "num_examples": 40,
+      "X_shape": [
+        40,
+        3000,
+        4
+      ],
+      "feature_names": [
+        "relative_time",
+        "delta_time",
+        "packet_length",
+        "direction"
+      ],
+      "class_counts_by_id": {
+        "0": 7,
+        "1": 6,
+        "2": 7,
+        "3": 6,
+        "4": 7,
+        "5": 7
+      },
+      "class_counts": {
+        "chatgpt.com": 7,
+        "expedia.com": 6,
+        "netflix.com": 7,
+        "princeton.edu": 6,
+        "wikipedia.org": 7,
+        "youtube.com": 7
+      },
+      "metrics": {
+        "1_shot_accuracy": 0.3164705882352941,
+        "5_shot_accuracy": 0.39799999999999996,
+        "10_shot_accuracy": null
+      }
+    },
+    {
+      "tensor": "tensors/ofdma_off_6_triplet.pt",
+      "metadata": "tensors/ofdma_off_6_triplet_meta.json",
+      "empty_captures_dropped": 0,
+      "num_examples": 60,
+      "X_shape": [
+        60,
+        3000,
+        4
+      ],
+      "feature_names": [
+        "relative_time",
+        "delta_time",
+        "packet_length",
+        "direction"
+      ],
+      "class_counts_by_id": {
+        "0": 10,
+        "1": 10,
+        "2": 10,
+        "3": 10,
+        "4": 10,
+        "5": 10
+      },
+      "class_counts": {
+        "chatgpt.com": 10,
+        "expedia.com": 10,
+        "netflix.com": 10,
+        "princeton.edu": 10,
+        "wikipedia.org": 10,
+        "youtube.com": 10
+      },
+      "metrics": {
+        "1_shot_accuracy": 0.17703703703703702,
+        "5_shot_accuracy": 0.17366666666666666,
+        "10_shot_accuracy": null
+      }
+    },
+    {
+      "tensor": "tensors/ofdma_off_8_triplet.pt",
+      "metadata": "tensors/ofdma_off_8_triplet_meta.json",
+      "empty_captures_dropped": 0,
+      "num_examples": 60,
+      "X_shape": [
+        60,
+        3000,
+        4
+      ],
+      "feature_names": [
+        "relative_time",
+        "delta_time",
+        "packet_length",
+        "direction"
+      ],
+      "class_counts_by_id": {
+        "0": 10,
+        "1": 10,
+        "2": 10,
+        "3": 10,
+        "4": 10,
+        "5": 10
+      },
+      "class_counts": {
+        "chatgpt.com": 10,
+        "expedia.com": 10,
+        "netflix.com": 10,
+        "princeton.edu": 10,
+        "wikipedia.org": 10,
+        "youtube.com": 10
+      },
+      "metrics": {
+        "1_shot_accuracy": 0.15648148148148147,
+        "5_shot_accuracy": 0.14,
+        "10_shot_accuracy": null
+      }
+    }
+  ]
+}

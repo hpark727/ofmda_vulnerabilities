@@ -1,0 +1,105 @@
+{
+  "dataset": "ofdma_off_train/ofdma_off_train.pt",
+  "metadata": "ofdma_off_train/ofdma_off_train_meta.json",
+  "feature_names": [
+    "relative_time",
+    "delta_time",
+    "packet_length",
+    "direction"
+  ],
+  "empty_captures_dropped": 0,
+  "train_size": 598,
+  "val_size": 127,
+  "test_size": 162,
+  "num_classes_train": 6,
+  "num_classes_test": 6,
+  "dropped_classes": {},
+  "history": [
+    {
+      "epoch": 1,
+      "loss": 0.007031980374449631,
+      "mean_positive_similarity": 0.9511459774027268,
+      "mean_negative_similarity": 0.4517184644937515,
+      "validation_accuracy": 0.985979381443299,
+      "num_triplets": 6144,
+      "negative_mining": "random",
+      "train_all_positive_similarity": 0.9589532613754272,
+      "train_all_negative_similarity": 0.508145809173584,
+      "train_all_similarity_gap": 0.45080745220184326,
+      "train_nearest_neighbor_accuracy": 0.9799330830574036
+    },
+    {
+      "epoch": 2,
+      "loss": 0.0031623643480998,
+      "mean_positive_similarity": 0.964931151519219,
+      "mean_negative_similarity": 0.4298496764774124,
+      "validation_accuracy": 0.9910309278350516,
+      "num_triplets": 6144,
+      "negative_mining": "random",
+      "train_all_positive_similarity": 0.9681105017662048,
+      "train_all_negative_similarity": 0.29025939106941223,
+      "train_all_similarity_gap": 0.6778511106967926,
+      "train_nearest_neighbor_accuracy": 0.9916387796401978
+    },
+    {
+      "epoch": 3,
+      "loss": 0.0016864204638598796,
+      "mean_positive_similarity": 0.9672476233293613,
+      "mean_negative_similarity": 0.3645056051512559,
+      "validation_accuracy": 0.990721649484536,
+      "num_triplets": 6144,
+      "negative_mining": "random",
+      "train_all_positive_similarity": 0.9772896766662598,
+      "train_all_negative_similarity": 0.4709952771663666,
+      "train_all_similarity_gap": 0.5062943994998932,
+      "train_nearest_neighbor_accuracy": 0.9949832558631897
+    }
+  ],
+  "test_metrics": {
+    "1_shot_accuracy": 0.9608974358974359,
+    "5_shot_accuracy": 0.9711363636363636
+  },
+  "normalization": {
+    "mean": [
+      1.8297797441482544,
+      0.003303252160549164,
+      1364.838134765625,
+      -0.7084752321243286
+    ],
+    "std": [
+      0.9673991799354553,
+      0.0673237293958664,
+      549.4876708984375,
+      0.7057357430458069
+    ]
+  },
+  "args": {
+    "dataset": "ofdma_off_train/ofdma_off_train.pt",
+    "metadata": "ofdma_off_train/ofdma_off_train_meta.json",
+    "output_dir": "triplet_runs/random_negatives_only_ofdma_off_train",
+    "train_frac": 0.7,
+    "val_frac": 0.15,
+    "epochs": 3,
+    "batch_size": 64,
+    "eval_batch_size": 256,
+    "embedding_dim": 64,
+    "margin": 0.1,
+    "learning_rate": 0.001,
+    "weight_decay": 1e-05,
+    "dropout": 0.1,
+    "optimizer": "adamw",
+    "hard_negative_start_epoch": 999,
+    "max_pairs_per_class": 1024,
+    "n_shot": [
+      1,
+      5
+    ],
+    "validation_n_shot": 5,
+    "validation_episodes": 100,
+    "test_episodes": 100,
+    "knn_k": 1,
+    "seed": 42,
+    "no_progress": false,
+    "device": "cpu"
+  }
+}
